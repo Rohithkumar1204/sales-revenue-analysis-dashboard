@@ -1,0 +1,137 @@
+# SALES & REVENUE ANALYSIS DASHBOARD
+# Google Colab - Single Program
+
+!pip -q install plotly ipywidgets
+
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+from IPython.display import display, HTML
+import ipywidgets as widgets
+
+# 1. Generate sample sales dataset
+np.random.seed(42)
+n = 500
+
+df = pd.DataFrame({
+    "Order Date": pd.to_datetime(
+        np.random.choice(pd.date_range("2025-01-01", "2025-12-31"), n)
+    ),
+    "Product": np.random.choice(
+        ["Laptop", "Mobile", "Headphones", "Keyboard", "Monitor"], n
+    ),
+    "Region": np.random.choice(
+        ["North", "South", "East", "West"], n
+    ),
+    "Quantity": np.random.randint(1, 10, n),
+    "Price": np.random.choice([500, 1000, 1500, 2500, 5000], n)
+})
+
+df["Revenue"] = df["Quantity"] * df["Price"]
+
+# 2. Dashboard title
+display(HTML("""
+<h1 style='text-align:center;color:#2457C5'>
+Sales & Revenue Analysis Dashboard
+</h1>
+<p style='text-align:center'>
+Analyze sales, revenue trends, regions and top-performing products
+</p>
+"""))
+
+# 3. Interactive filters
+product_filter = widgets.Dropdown(
+    options=["All"] + sorted(df["Product"].unique().tolist()),
+    description="Product:"
+)
+region_filter = widgets.Dropdown(
+    options=["All"] + sorted(df["Region"].unique().tolist()),
+    description="Region:"
+)
+
+def dashboard(product, region):
+    data = df.copy()
+
+    if product != "All":
+        data = data[data["Product"] == product]
+    if region != "All":
+        data = data[data["Region"] == region]
+
+    if data.empty:
+        display(HTML("<h3>No sales data found for these filters.</h3>"))
+        return
+
+    # 4. KPI cards
+    total_revenue = data["Revenue"].sum()
+    total_units = data["Quantity"].sum()
+    total_orders = len(data)
+    avg_order_value = total_revenue / total_orders
+
+    display(HTML(f"""
+    <div style='display:flex;flex-wrap:wrap;gap:12px'>
+      <div style='background:#e8f0ff;padding:18px;border-radius:10px;flex:1'>
+        <b>Total Revenue</b><h2>₹{total_revenue:,.0f}</h2>
+      </div>
+      <div style='background:#e6f7ed;padding:18px;border-radius:10px;flex:1'>
+        <b>Units Sold</b><h2>{total_units:,}</h2>
+      </div>
+      <div style='background:#fff0df;padding:18px;border-radius:10px;flex:1'>
+        <b>Total Orders</b><h2>{total_orders:,}</h2>
+      </div>
+      <div style='background:#f4e9ff;padding:18px;border-radius:10px;flex:1'>
+        <b>Average Revenue per Record</b><h2>₹{avg_order_value:,.0f}</h2>
+      </div>
+    </div>
+    """))
+
+    # 5. Revenue trend
+    monthly = data.copy()
+    monthly["Month"] = monthly["Order Date"].dt.to_period("M").astype(str)
+    trend = monthly.groupby("Month", as_index=False)["Revenue"].sum()
+
+    fig1 = px.line(
+        trend, x="Month", y="Revenue",
+        markers=True, title="Monthly Revenue Trend"
+    )
+    fig1.update_layout(template="plotly_white")
+    fig1.show()
+
+    # 6. Revenue by product
+    product_sales = data.groupby(
+        "Product", as_index=False
+    )["Revenue"].sum().sort_values("Revenue", ascending=False)
+
+    fig2 = px.bar(
+        product_sales, x="Product", y="Revenue",
+        color="Revenue", title="Revenue by Product"
+    )
+    fig2.update_layout(template="plotly_white")
+    fig2.show()
+
+    # 7. Revenue by region
+    region_sales = data.groupby(
+        "Region", as_index=False
+    )["Revenue"].sum()
+
+    fig3 = px.pie(
+        region_sales, names="Region", values="Revenue",
+        title="Revenue Share by Region", hole=0.4
+    )
+    fig3.show()
+
+    # 8. Top-performing products
+    display(HTML("<h3>Top-Performing Products</h3>"))
+    display(product_sales.head(5).reset_index(drop=True))
+
+    # 9. Dataset preview
+    display(HTML("<h3>Sales Data Preview</h3>"))
+    display(data.head(10))
+
+out = widgets.interactive_output(
+    dashboard,
+    {"product": product_filter, "region": region_filter}
+)
+
+display(widgets.HBox([product_filter, region_filter]))
+display(out)
